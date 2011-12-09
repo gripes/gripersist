@@ -3,8 +3,8 @@ package mock
 import net.sf.gripes.entity.annotation.*
 
 @Entity class Author {
-	String name
-	Post posts
+	public String name
+	public Post posts
 	
 	def mappings = {
 		many(posts)

@@ -8,7 +8,7 @@ import org.junit.Test
 class TestEntityASTTransformation extends GroovyTestCase {
 
 	@Test public void testAnnotationPresent() {		
-		def bookFile = new File('test/mock/Book.groovy')
+		def bookFile = new File('test/mock/Author.groovy')
 		
 		assert bookFile.exists()
 
@@ -16,8 +16,7 @@ class TestEntityASTTransformation extends GroovyTestCase {
 		def cls2 = invoker.parseClass(bookFile)
 		def book = cls2.newInstance()
 		
-		println book.class.getField("name").getAnnotation(javax.persistence.OneToMany)
 		assertNotNull book.class.getAnnotation(javax.persistence.Entity)
-		assertNotNull book.class.getField("name").getAnnotation(javax.persistence.OneToMany)
+		assertNotNull book.class.getField("posts").getAnnotation(javax.persistence.OneToMany)
 	}
 }
