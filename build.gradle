@@ -1,5 +1,7 @@
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
 
+dependsOn(':gripes-ast')
+
 apply {
 	plugin 'groovy'
 	plugin 'eclipse'
@@ -47,8 +49,8 @@ dependencies {
 	}
 	
 	//** Groovy
-	groovy group: 'org.codehaus.groovy', name: 'groovy', version: '1.7.10'
-	compile group: 'org.codehaus.groovy', name: 'groovy', version: '1.7.10'
+	groovy group: 'org.codehaus.groovy', name: 'groovy', version: '1.8.4'
+	compile group: 'org.codehaus.groovy', name: 'groovy', version: '1.8.4'
 	
 	//** Servlet
 	compile group: 'javax.servlet', name: 'servlet-api', version: '2.5'
@@ -83,16 +85,7 @@ uploadArchives {
        flatDir(dirs: file('repos'))
     }
 }
-uploadArchives.doLast {
-	/*	
-	ant {
-		copy(todir:buildDir.canonicalPath+"/"+libsDirName) {
-	    	fileset(dir:buildDir.canonicalPath, includes:"ivy.xml")
-		}
-		delete(file: buildDir.canonicalPath+"/ivy.xml")
-    }
-    */
-    
+uploadArchives.doLast {    
 	ant {
 		taskdef(name: 'ftp',
                 classname: 'org.apache.tools.ant.taskdefs.optional.net.FTP',

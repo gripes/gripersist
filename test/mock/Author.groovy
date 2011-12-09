@@ -2,10 +2,9 @@ package mock
 
 import net.sf.gripes.entity.annotation.*
 
-//import javax.persistence.Entity
-
-class Author {
-	@HasMany public Post posts
+@Entity class Author {
+	String name
+	Post posts
 	
 	def mappings = {
 		many(posts)

@@ -12,6 +12,4 @@ import org.codehaus.groovy.transform.GroovyASTTransformationClass
 @Target([ElementType.TYPE])
 @Retention(RetentionPolicy.SOURCE)
 @GroovyASTTransformationClass(["net.sf.gripes.entity.transform.EntityASTTransformation"])
-public @interface Entity {
-	
-}
+public @interface Entity { }
