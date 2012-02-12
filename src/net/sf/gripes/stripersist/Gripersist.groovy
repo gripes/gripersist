@@ -1,7 +1,6 @@
 package net.sf.gripes.stripersist
 
-import org.stripesstuff.stripersist.Stripersist
-
+import net.sf.gripes.basestripersist.Stripersist;
 import net.sourceforge.stripes.config.ConfigurableComponent
 import net.sourceforge.stripes.controller.Intercepts
 import net.sourceforge.stripes.controller.LifecycleStage
@@ -12,6 +11,7 @@ import javax.persistence.EntityManager;
 
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+
 
 @Intercepts([LifecycleStage.RequestInit, LifecycleStage.RequestComplete])
 class Gripersist extends Stripersist implements Interceptor, ConfigurableComponent {

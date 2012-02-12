@@ -12,7 +12,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.stripesstuff.stripersist;
+package net.sf.gripes.basestripersist;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -54,6 +54,7 @@ import net.sourceforge.stripes.util.Log;
 
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import org.stripesstuff.stripersist.StripersistInit;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
@@ -151,23 +152,27 @@ public class Stripersist implements Interceptor, ConfigurableComponent {
             // try to get all available resources.
             Enumeration<URL> allResources = getClass().getClassLoader().getResources("META-INF/persistence.xml");
             if (allResources != null && allResources.hasMoreElements()) {
+//				println "HERE XML: " + Class.forName("org.hibernate.util.DTDEntityResolver")
                 while (allResources.hasMoreElements()) {
                     URL url = allResources.nextElement();
                     log.info("Reading persistence.xml from {}", url);
                     init(url);
                 }
             } else {
+				println "Looking for persistence.xml"
+				
                 URL url = Thread.currentThread().getContextClassLoader().getResource("/META-INF/persistence.xml");
-
+				println "URL ${url}"
                 // url may be null if using ant/junit. if it is null we'll try a
                 // different classloader - thanks freddy!
-                if (url == null)
-                    url = getClass().getResource("/META-INF/persistence.xml");
-
+                if (url == null) {
+					println "FIND URL STILL!"
+                 	//   url = getClass().getResource("/META-INF/persistence.xml");
+                }
                 log.debug("Reading persistence.xml from {}", url);
                 init(url);
             }
-
+			println "Should have the persistence.xml"
             automaticTransactions = getConfigurationSwitch(AUTOMATIC_TRANSACTIONS, automaticTransactions);
 
             log.info("Automatic transactions {}", Stripersist.automaticTransactions ? "enabled" : "disabled");
@@ -194,6 +199,7 @@ public class Stripersist implements Interceptor, ConfigurableComponent {
             }
             requestComplete();
         } catch (Exception e) {
+			e.printStackTrace()
             log.error(""+e);
         }
     }
@@ -387,6 +393,7 @@ public class Stripersist implements Interceptor, ConfigurableComponent {
      * @return a set of entity classes
      */
     private static Set<? extends Class<?>> findEntitiesInJar(File file) {
+		if(!file.exists()) return (new HashSet<Class<?>>())
         try {
             JarEntry entry;
             JarInputStream jarStream = new JarInputStream(new FileInputStream(file));
@@ -714,11 +721,11 @@ public class Stripersist implements Interceptor, ConfigurableComponent {
                     log.trace("RequestInit");
                     requestInit();
                     break;
-                case net.sourceforge.stripes.controller.LifecycleStage.RequestComplete:
+				case net.sourceforge.stripes.controller.LifecycleStage.RequestComplete:
                     log.trace("RequestComplete");
                     requestComplete();
                     break;
-            }
+			}
         }
 
         return context.proceed();

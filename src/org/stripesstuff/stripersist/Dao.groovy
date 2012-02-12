@@ -5,7 +5,7 @@ import java.util.List;
 import javax.persistence.NoResultException;
 import javax.persistence.Query;
 
-import org.stripesstuff.stripersist.Stripersist;
+import net.sf.gripes.basestripersist.Stripersist;
 
 /**
  * <p>

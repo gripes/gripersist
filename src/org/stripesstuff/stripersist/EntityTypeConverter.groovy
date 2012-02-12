@@ -23,6 +23,7 @@ import javax.persistence.EntityManager;
 import javax.persistence.EntityNotFoundException;
 import javax.persistence.MappedSuperclass;
 
+import net.sf.gripes.basestripersist.Stripersist;
 import net.sourceforge.stripes.config.TargetTypes;
 import net.sourceforge.stripes.controller.StripesFilter;
 import net.sourceforge.stripes.util.Log;
