@@ -1,6 +1,6 @@
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
 
-dependsOn(':gripes-ast')
+//dependsOn(':gripes-ast')
 
 apply {
 	plugin 'groovy'
@@ -11,13 +11,14 @@ logger.quiet "Building Gripersist"
 
 group = 'gripes'
 archivesBaseName = 'gripersist'
-version = '0.1.4'
+version = '0.1.5'
 
 versions = [
 	'gripes-web' : '0.1.7',
 	'gripes-plugin' : '0.1.7',
 	'gripersist' : '0.1.4',
-	'hibernate-core' : '4.0.0.Beta2'
+	'hibernate-core' : '4.0.1.Final',
+	'tomcat':'6.0.35'
 ]
 
 repositories {
@@ -37,7 +38,11 @@ sourceSets {
 
 		groovy { srcDir 'src' }
 	    resources { srcDir 'resources' }
-	}	
+	}
+	test {
+		groovy { srcDir 'test' }
+		resources { srcDir 'test-resources' }
+	}
 }
 
 dependencies {
@@ -49,35 +54,58 @@ dependencies {
 	}
 	
 	//** Groovy
-	groovy group: 'org.codehaus.groovy', name: 'groovy', version: '1.8.4'
-	compile group: 'org.codehaus.groovy', name: 'groovy', version: '1.8.4'
+	groovy (group: 'org.codehaus.groovy', name: 'groovy', version: '1.8.4')
+	compile (group: 'org.codehaus.groovy', name: 'groovy', version: '1.8.4')
 	
 	//** Servlet
-	provided group: 'javax.servlet', name: 'servlet-api', version: '2.5'
+//	testCompile group: 'javax.servlet', name: 'servlet-api', version: '2.5'
+	testCompile group: 'javax.servlet', name: 'jsp-api', version: '2.0'
 
 	//** Framework
 	compile group: 'net.sourceforge.stripes', name: 'stripes', version: '1.5.6'
 	
 	//** Database
+	testCompile group: 'org.hsqldb', name: 'hsqldb', version: '2.0.0'
 	compile group: 'org.hibernate', name: 'hibernate-core', version: versions['hibernate-core']
 	compile group: 'org.hibernate', name: 'hibernate-entitymanager', version: versions['hibernate-core']
 	runtime group: 'org.hibernate', name: 'hibernate-c3p0', version: versions['hibernate-core']
 	
 	//** Logging
-	provided group: 'org.slf4j', name: 'slf4j-api', version: '1.6.1'
-	provided group: 'ch.qos.logback', name: 'logback-core', version: '0.9.28'
-	provided group: 'ch.qos.logback', name: 'logback-access', version: '0.9.28'
-	provided group: 'ch.qos.logback', name: 'logback-classic', version: '0.9.28'
+	compile group: 'org.slf4j', name: 'slf4j-api', version: '1.6.1'
+	compile group: 'ch.qos.logback', name: 'logback-core', version: '0.9.28'
+	compile group: 'ch.qos.logback', name: 'logback-access', version: '0.9.28'
+	compile group: 'ch.qos.logback', name: 'logback-classic', version: '0.9.28'
 	
 	//** Testing
 	testCompile 'junit:junit:4.10'
+	
+	//** Tomcat
+//	testCompile	"org.apache.tomcat:catalina:${versions['tomcat']}",
+//				"org.apache.tomcat:coyote:${versions['tomcat']}",
+//				"org.apache.tomcat:jasper:${versions['tomcat']}"
+
+	
+	compile 'org.apache.tomcat:catalina:6.0.35'
+	compile 'org.apache.tomcat:coyote:6.0.35'
+	compile 'org.apache.tomcat:jasper:6.0.35'
+	compile 'org.apache.tomcat:jsp-api:6.0.35'
+	compile group: 'org.apache.tomcat', name: 'servlet-api', version: '6.0.35'
+	compile group: 'org.apache.tomcat', name: 'jsp-api', version: '6.0.35'
+					
+	compile(project(":gripes-ast")){changing=true}
 }
 
 eclipse {
 	classpath {
+		defaultOutputDir=file("bin/main")
 		file {
+			withXml {
+				def xml = it.asNode()
+				xml."classpathentry".findAll{it."@kind"=="src" && it."@path".find("test")}*."@output"="bin/test"
+			}
 			whenMerged { classpath ->
-				classpath.entries.add(new SourceFolder("/gripes-ast","",new LinkedHashSet(),"", new ArrayList(), new ArrayList() ))
+				classpath.entries.removeAll(classpath.entries.findAll{((it instanceof SourceFolder) && it.dir==null)})
+//				classpath.entries.removeAll(classpath.entries.find{it.path.find("servlet-api-2.4")})
 			}
 		}
 	}
@@ -88,7 +116,7 @@ gradle.taskGraph.whenReady {taskGraph ->
 	if (taskGraph.hasTask(':release')) {
 		version = "1.0"
 	} else {
-		version = "${version}-SNAPSHOT" //+new GregorianCalendar().timeInMillis
+		version = "${version}-SNAPSHOT-"+new GregorianCalendar().timeInMillis
 	}
 	logger.quiet "Version set to $version"
 }

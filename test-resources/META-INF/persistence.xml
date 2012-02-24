@@ -1,0 +1,30 @@
+<persistence xmlns="http://java.sun.com/xml/ns/persistence"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://java.sun.com/xml/ns/persistence http://java.sun.com/xml/ns/persistence/persistence_2_0.xsd" 
+	version="2.0">
+	
+	<persistence-unit name="gripersistTestPU" transaction-type="RESOURCE_LOCAL"> 
+	    <provider>org.hibernate.ejb.HibernatePersistence</provider>
+	
+		<class>mock.model.Author</class>
+		<class>mock.model.Post</class>
+	
+	    <properties>
+		    <property name="hibernate.show_sql" value="false" />
+
+			<!-- Hibernate and the SQL schema (validate, create-drop, create, update)-->
+			<property name="hibernate.hbm2ddl.auto" value="create-drop"/>
+			
+			<!-- Tell Hibernate to use HSQLDB --> 
+			<property name="hibernate.dialect" value="org.hibernate.dialect.HSQLDialect"/> 
+			<property name="hibernate.connection.driver_class" value="org.hsqldb.jdbc.JDBCDriver"/>
+			<property name="debug" value="true" />
+
+			<!-- Configure the JDBC database connection -->
+			<property name="hibernate.connection.url" value="jdbc:hsqldb:mem:gripersist" />
+			<property name="hibernate.connection.username" value="sa"/> 
+			<property name="hibernate.connection.password" value=""/>
+			<property name="jdbc.batch_size" value="0"/>			
+	    </properties> 
+	</persistence-unit> 
+</persistence>

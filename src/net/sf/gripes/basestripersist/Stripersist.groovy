@@ -14,53 +14,50 @@
  */
 package net.sf.gripes.basestripersist;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.lang.reflect.Modifier;
-import java.net.URL;
-import java.net.URLClassLoader;
-import java.net.URLDecoder;
-import java.util.Enumeration;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.HashMap;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.jar.JarEntry;
-import java.util.jar.JarInputStream;
+import groovy.util.slurpersupport.GPathResult
 
-import javax.persistence.Entity;
-import javax.persistence.EntityManager;
-import javax.persistence.EntityManagerFactory;
-import javax.persistence.EntityTransaction;
-import javax.persistence.MappedSuperclass;
-import javax.persistence.Persistence;
-import javax.servlet.http.HttpServletRequest;
-import javax.xml.parsers.DocumentBuilderFactory;
+import java.io.File
+import java.io.FileInputStream
+import java.io.IOException
+import java.lang.reflect.Method
+import java.lang.reflect.Modifier
+import java.net.URL
+import java.net.URLClassLoader
+import java.net.URLDecoder
+import java.util.Enumeration
+import java.util.HashMap
+import java.util.HashSet
+import java.util.Iterator
+import java.util.Map
+import java.util.Set
+import java.util.concurrent.ConcurrentHashMap
+import java.util.jar.JarEntry
+import java.util.jar.JarInputStream
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
-import net.sourceforge.stripes.action.ActionBeanContext;
-import net.sourceforge.stripes.action.Resolution;
-import net.sourceforge.stripes.config.ConfigurableComponent;
-import net.sourceforge.stripes.config.Configuration;
-import net.sourceforge.stripes.controller.ExecutionContext;
-import net.sourceforge.stripes.controller.Interceptor;
-import net.sourceforge.stripes.controller.Intercepts;
-import net.sourceforge.stripes.controller.LifecycleStage;
-import net.sourceforge.stripes.controller.StripesConstants;
-import net.sourceforge.stripes.exception.StripesRuntimeException;
-import net.sourceforge.stripes.util.Log;
+import javax.persistence.Entity
+import javax.persistence.EntityManager
+import javax.persistence.EntityManagerFactory
+import javax.persistence.EntityTransaction
+import javax.persistence.MappedSuperclass
+import javax.persistence.Persistence
+import javax.servlet.http.HttpServletRequest
+
+import net.sourceforge.stripes.action.ActionBeanContext
+import net.sourceforge.stripes.action.Resolution
+import net.sourceforge.stripes.config.ConfigurableComponent
+import net.sourceforge.stripes.config.Configuration
+import net.sourceforge.stripes.controller.ExecutionContext
+import net.sourceforge.stripes.controller.Interceptor
+import net.sourceforge.stripes.controller.Intercepts
+import net.sourceforge.stripes.controller.LifecycleStage
+import net.sourceforge.stripes.controller.StripesConstants
+import net.sourceforge.stripes.exception.StripesRuntimeException
 
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import org.stripesstuff.stripersist.StripersistInit;
-
-import org.w3c.dom.Document;
-import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
-
-import org.hibernate.ejb.HibernatePersistence;
+import org.stripesstuff.stripersist.StripersistInit
 
 /**
  * <p>
@@ -96,7 +93,9 @@ import org.hibernate.ejb.HibernatePersistence;
 @Intercepts( [ LifecycleStage.RequestInit, LifecycleStage.RequestComplete ])
 public class Stripersist implements Interceptor, ConfigurableComponent {
 /*    private static final Log log = Log.getInstance(Stripersist.class);*/
-	private static final Logger log = LoggerFactory.getLogger(Stripersist.class)
+	private final Logger logger = LoggerFactory.getLogger(Stripersist.class)
+	private static final Logger _log = LoggerFactory.getLogger(Stripersist.class)
+	private static final Logger _logger = LoggerFactory.getLogger(Stripersist.class)
 
     /**
      * Parameter name for specifying StripersistInit classes in web.xml. This is optional;
@@ -134,11 +133,91 @@ public class Stripersist implements Interceptor, ConfigurableComponent {
 
     static {
         Package pkg = Stripersist.class.getPackage();
-        log.info("\r\n##################################################",
+        _log.info("\r\n##################################################",
                  "\r\n# Stripersist Version: ", pkg.getSpecificationVersion(), ", Build: ", pkg.getImplementationVersion(),
                  "\r\n##################################################");
     }
 
+	def gripesConfig
+	def dbConfig
+	public URL createFromTemplate(URL template) {
+		File templateFile = new File(template.getFile().replaceAll("template", "xml"))
+		File persistenceXml = File.createTempFile("persistence", "xml")
+//		persistenceXml.createNewFile()
+		persistenceXml.deleteOnExit()
+
+		persistenceXml.text = """<persistence xmlns="http://java.sun.com/xml/ns/persistence"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://java.sun.com/xml/ns/persistence http://java.sun.com/xml/ns/persistence/persistence_1_0.xsd"
+	version="1.0">
+"""
+		
+		String templateText = ""
+		dbConfig.database.each { String name, def options ->
+			templateText = template.text
+								.replaceAll(/\[NAME\]/,name)
+								.replaceAll(/\[DBSCHEMA\]/,options.schema?:'')
+								.replaceAll(/\[DBDIALECT\]/,options.dialect?:'')
+								.replaceAll(/\[DBDRIVER\]/,options.driver?:'')
+								.replaceAll(/\[DBURL\]/,options.url?:'')
+								.replaceAll(/\[DBUSER\]/, options.user?:'')
+								.replaceAll(/\[DBPASSWORD\]/, options.pass?:'')
+			
+			if(options.classes.equals("auto")) {
+				templateText = templateText
+									.replaceAll(/\[AUTO\]/,'<property name="hibernate.archive.autodetection" value="class"/>')
+									.replaceAll(/\[CLASSES\]/,'')
+			} else {
+				templateText = templateText
+									.replaceAll(/\[AUTO\]/,'')
+									.replaceAll(/\[CLASSES\]/, options.classes.collect{"<class>$it</class>"}.join("\n"))
+			}
+			
+			def addonConfig = ""
+			gripesConfig.addons.each { addon ->
+				if((addon=~/-src/).find()) {
+					addonConfig = new File("gripes-addons/"+addon.replace("-src","")+"/gripes.addon")
+				} else if(new File("addons/${addon}/gripes.addon").exists()) {
+					addonConfig = new File("addons/${addon}/gripes.addon")
+				} else {
+					addonConfig = new File("../${addon}/gripes.addon")
+				}
+				
+				def config = new ConfigSlurper().parse(addonConfig.text)
+				templateText = templateText.replaceAll(/\[ADDITIONAL\]/,"[ADDITIONAL]"+((config.persistence.size()>0)?config.persistence:''))
+			}
+			templateText = templateText.replaceAll(/\[ADDITIONAL\]/,"")
+			
+			persistenceXml.text += templateText
+		}
+		
+		persistenceXml.text +="\n</persistence>"
+		
+		String jarpath = templateFile.canonicalPath.replaceAll(/META-INF.*$/,'')
+		
+		File jarFile = new File(jarpath+"persistence-template.jar")
+		jarFile.createNewFile()
+//		jarFile.deleteOnExit()
+
+		ZipOutputStream zipFile = new ZipOutputStream(new FileOutputStream(jarpath+"persistence-template.jar"))
+		zipFile.putNextEntry(new ZipEntry("META-INF/persistence.xml"))
+		zipFile.setBytes(persistenceXml.bytes)
+		zipFile.close()
+		
+		URLClassLoader sysloader = (URLClassLoader) ClassLoader.getSystemClassLoader();
+		Class<?> sysclass = URLClassLoader.class;
+		try {
+			Method method = sysclass.getDeclaredMethod("addURL", [java.net.URL] as Class[]);
+			method.setAccessible(true);
+			method.invoke(sysloader, jarFile.toURI().toURL());
+		} catch (Throwable t) {
+			t.printStackTrace();
+			throw new IOException("Error, could not add URL to system classloader");
+		}
+		
+		jarFile.toURI().toURL()
+	}
+	
     /**
      * Called by Stripes during initialization.
      */
@@ -148,59 +227,80 @@ public class Stripersist implements Interceptor, ConfigurableComponent {
         try {
             // Just in case this is not the first call to this method, release any resources
             cleanup();
-
-            // try to get all available resources.
-            Enumeration<URL> allResources = getClass().getClassLoader().getResources("META-INF/persistence.xml");
-            if (allResources != null && allResources.hasMoreElements()) {
-//				println "HERE XML: " + Class.forName("org.hibernate.util.DTDEntityResolver")
-                while (allResources.hasMoreElements()) {
-                    URL url = allResources.nextElement();
-                    log.info("Reading persistence.xml from {}", url);
-                    init(url);
-                }
-            } else {
-				println "Looking for persistence.xml"
+			println "DB: " + configuration.servletContext.getAttribute("gripes.config.db")
+			URL url
+			if (configuration.servletContext && configuration.servletContext.getAttribute('gripes.persistence.xml')) {
+				url = configuration.servletContext.getAttribute('gripes.persistence.xml')
+				logger.info("Using persistence.xml from gripes.persistence.xml: {}", url);
 				
-                URL url = Thread.currentThread().getContextClassLoader().getResource("/META-INF/persistence.xml");
-				println "URL ${url}"
-                // url may be null if using ant/junit. if it is null we'll try a
-                // different classloader - thanks freddy!
-                if (url == null) {
-					println "FIND URL STILL!"
-                 	//   url = getClass().getResource("/META-INF/persistence.xml");
-                }
-                log.debug("Reading persistence.xml from {}", url);
-                init(url);
-            }
-			println "Should have the persistence.xml"
+				init(url)
+			} else {
+				gripesConfig = configuration.servletContext.getAttribute("gripes.config")?:
+								(new ConfigSlurper().parse(this.class.classLoader.getResource("Config.groovy")))								
+				dbConfig = configuration.servletContext.getAttribute("gripes.config.db")?:
+								(new ConfigSlurper().parse(this.class.classLoader.getResource("DB.groovy")))
+
+				def xmlTempl =  this.class.classLoader.getResource("META-INF/persistence.template")
+				
+				if(dbConfig && !dbConfig.disabled && xmlTempl) {
+					url = createFromTemplate(xmlTempl)
+					
+					init("jar:${url.toString()}!/META-INF/persistence.xml".toURL())
+				} else {
+					// try to get all available resources.
+					Enumeration<URL> allResources = getClass().getClassLoader().getResources("META-INF/persistence.xml");				
+					if (allResources != null && allResources.hasMoreElements()) {
+						while (allResources.hasMoreElements()) {
+							url = allResources.nextElement();
+							logger.info("Reading persistence.xml from {}", url);
+							init(url);
+						}
+					} else {
+						logger.debug "Still looking for persistence.xml"
+											
+						url = Thread.currentThread().getContextClassLoader().getResource("/META-INF/persistence.xml");
+	
+						// url may be null if using ant/junit. if it is null we'll try a
+						// different classloader - thanks freddy!
+						if (url == null) {
+							log.debug "Still no persistence.xml, one last chance..."
+							url = getClass().getResource("/META-INF/persistence.xml");
+						}
+						
+						log.debug("Reading persistence.xml from {}", url);
+						init(url);
+					}				
+				}
+			}
+
             automaticTransactions = getConfigurationSwitch(AUTOMATIC_TRANSACTIONS, automaticTransactions);
 
-            log.info("Automatic transactions {}", Stripersist.automaticTransactions ? "enabled" : "disabled");
+            logger.info("Automatic transactions {}", Stripersist.automaticTransactions ? "enabled" : "disabled");
 
             dontCloseEntityManager = getConfigurationSwitch(DONT_CLOSE_ENTITYMANAGER, dontCloseEntityManager);
             if (dontCloseEntityManager)
-                log.warn("EntityManagers will NOT be closed automatically. This is only intended to be used for unit testing.");
+                logger.warn("EntityManagers will NOT be closed automatically. This is only intended to be used for unit testing.");
 
             dontRollbackTransactions = getConfigurationSwitch(DONT_ROLLBACK_TRANSACTION, dontRollbackTransactions);
             if (dontRollbackTransactions)
-                log.warn("Transactions will NOT be rolled back automatically. This is only intended to be used for unit testing.");
+                logger.warn("Transactions will NOT be rolled back automatically. This is only intended to be used for unit testing.");
 
             requestInit();
             for (Class<? extends StripersistInit> initClass : configuration.getBootstrapPropertyResolver()
                     .getClassPropertyList(INIT_CLASSES_PARAM_NAME, StripersistInit.class)) {
                 try {
                     if (!initClass.isInterface() && ((initClass.getModifiers() & Modifier.ABSTRACT) == 0)) {
-                        log.debug("Found StripersistInit class {} - instanciating and calling init()", initClass);
+                        logger.debug("Found StripersistInit class {} - instanciating and calling init()", initClass);
                         initClass.newInstance().init();
                     }
                 } catch (Exception e) {
-                    log.error("{} Error occurred while calling init() on {}",e , initClass);
+                    logger.error("{} Error occurred while calling init() on {}",e , initClass);
                 }
             }
             requestComplete();
         } catch (Exception e) {
 			e.printStackTrace()
-            log.error(""+e);
+            logger.error("1"+e);
         }
     }
 
@@ -230,107 +330,94 @@ public class Stripersist implements Interceptor, ConfigurableComponent {
      *            a URL pointing to persistence.xml
      */
     public void init(URL xml) {
-        log.debug("Initializing Stripersist using JPA persistence file.");
-
-        String firstPersistentUnit = null;
-
+        logger.debug("Initializing Stripersist using JPA persistence file....");
+		
+		String name = null
+		String firstPersistentUnit = null;
+		EntityManagerFactory factory
+	 	Map<String, Object> configOverrides
         try {
-            Document document = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(xml.openStream());
-            NodeList nodeList = document.getElementsByTagName("persistence-unit");
-            for (int i = 0; i < nodeList.getLength(); i++) {
-                Node persistenceUnit = nodeList.item(i);
+            GPathResult xmlDoc = new XmlSlurper().parse(xml.newReader())
+		   	xmlDoc["persistence-unit"].each { GPathResult persistenceUnit ->
+			   	name = persistenceUnit."@name"
+			   	firstPersistentUnit = firstPersistentUnit?:name
+			   	logger.info("Creating EntityManagerFactory for persistence unit {}", name);
+			   
+			   	configOverrides = new HashMap<String, Object>();
+			   	logger.info("Using {} and {}", name, configOverrides)
+			   	factory = Persistence.createEntityManagerFactory(name, configOverrides);
+			   
+			   	Stripersist.entityManagerFactories.put(name, factory);
+			   	logger.debug("created factory ", factory, " for ", name)//, factory, name);
+			   	logger.debug("emf.get(" + name + ") = " + Stripersist.entityManagerFactories.get(name));
+			   	logger.debug("emf = " + Stripersist.entityManagerFactories);
+			   
+			   	persistenceUnit.children().each { GPathResult child ->
+				   	if ("class".equalsIgnoreCase(child.name())) {
+					   	String className = child.text();
+					   	try {
+						   	Class<?> clazz = Class.forName(className);
 
-                String name = persistenceUnit.getAttributes().getNamedItem("name").getNodeValue();
-                if (firstPersistentUnit == null)
-                    firstPersistentUnit = name;
-                log.info("Creating EntityManagerFactory for persistence unit {}", name);
+						   	associateEntityManagerWithClass(factory, name, clazz);
+					   	} catch (Exception e) {
+						   e.printStackTrace()
+					   		logger.error(" Exception occurred while loading " + className);
+					   	}
+				   	} else if ("jar-file".equalsIgnoreCase(child.name())) {
+					   	String jarFile = child.text();
 
-				Map<String, Object> configOverrides = new HashMap<String, Object>();
-/*                EntityManagerFactory factory = Persistence.createEntityManagerFactory(name, configOverrides);*/
-				EntityManagerFactory factory = (new HibernatePersistence()).createEntityManagerFactory(name, configOverrides);
+					   	if (jarFile.startsWith("../../lib/"))
+							jarFile = jarFile.substring(10);
 
-                Stripersist.entityManagerFactories.put(name, factory);
-                log.debug("created factory {} for {}", factory, name);
-                log.debug("emf.get(" + name + ") = " + Stripersist.entityManagerFactories.get(name));
-                log.debug("emf = " + Stripersist.entityManagerFactories);
+						for (Class<?> clazz : findEntities(jarFile)) {
+						   associateEntityManagerWithClass(factory, name, clazz);
+					   	}
+				   	}
+			   	}
+			   
+			   	//load up the Entities in the jar file that contained the persistence.xml file.
+			   	Set<Class<?>> classes = new HashSet<Class<?>>();
 
-                NodeList children = persistenceUnit.getChildNodes();
+			   	String urlPath = xml.getFile();
+			   	logger.info("checking jar file from urlPath = " + urlPath);
+			   	if ("vfszip".equals(xml.getProtocol())) {
+				   	URL newUrl = new URL(xml.toString().substring(0, xml.toString().length() - 25));
+				   	logger.info("getting entities from new url " + newUrl);
+				   	classes.addAll(findEntitiesFromUrl(newUrl));
+			   	} else {
+				   	urlPath = URLDecoder.decode(urlPath, "UTF-8");
+				   	if (urlPath.startsWith("file:")) urlPath = urlPath.substring(5);
+				   	if (urlPath.endsWith("!/META-INF/persistence.xml")) urlPath = urlPath.substring(0, urlPath.length() - 26);
 
-                for (int j = 0; j < children.getLength(); j++) {
-                    Node child = children.item(j);
+				   	File file = new File(urlPath);
+				   	if (file.isDirectory())  
+				   		classes.addAll(findEntitiesInDirectory("", file));
+					else 
+				   		classes.addAll(findEntitiesInJar(file));
+			   }
 
-                    if ("class".equalsIgnoreCase(child.getNodeName())) {
-                        String className = child.getFirstChild().getNodeValue();
+			   classes.each { Class<?> clazz ->
+				   associateEntityManagerWithClass(factory, name, clazz);
+			   }
+		   }
 
-                        try {
-                            Class<?> clazz = Class.forName(className);
+		   if (Stripersist.entityManagerFactoryLookup.size() == 0 && firstPersistentUnit != null) {
+			   factory = Stripersist.entityManagerFactories.get(firstPersistentUnit);
+			   name = firstPersistentUnit;
 
-                            associateEntityManagerWithClass(factory, name, clazz);
-                        } catch (Exception e) {
-                            log.error(e + " Exception occurred while loading " + className);
-                        }
-                    } else if ("jar-file".equalsIgnoreCase(child.getNodeName())) {
-                        String jarFile = child.getFirstChild().getNodeValue();
-
-                        if (jarFile.startsWith("../../lib/"))
-                            jarFile = jarFile.substring(10);
-
-                        for (Class<?> clazz : findEntities(jarFile)) {
-                            associateEntityManagerWithClass(factory, name, clazz);
-                        }
-                    }
-                }
-                // load up the Entities in the jar file that contained the
-                // persistence.xml file.
-                Set<Class<?>> classes = new HashSet<Class<?>>();
-
-                // log.debug("checking far file from url:  " + xml);
-                log.info("checking jar file from url:  " + xml);
-                String urlPath = xml.getFile();
-                log.info("urlPath = " + urlPath);
-                if ("vfszip".equals(xml.getProtocol())) {
-                    log.info("getting entitires from stream.");
-                    URL newUrl = new URL(xml.toString().substring(0, xml.toString().length() - 25));
-                    log.info("checking new url " + newUrl);
-                    classes.addAll(findEntitiesFromUrl(newUrl));
-                } else {
-                    urlPath = URLDecoder.decode(urlPath, "UTF-8");
-                    if (urlPath.startsWith("file:")) {
-                        urlPath = urlPath.substring(5);
-                    }
-                    if (urlPath.endsWith("!/META-INF/persistence.xml")) {
-                        urlPath = urlPath.substring(0, urlPath.length() - 26);
-                    }
-
-                    File file = new File(urlPath);
-                    if (file.isDirectory()) {
-                        classes.addAll(findEntitiesInDirectory("", file));
-                    } else {
-                        classes.addAll(findEntitiesInJar(file));
-                    }
-                }
-                for (Class<?> clazz : classes) {
-                    associateEntityManagerWithClass(factory, name, clazz);
-                }
-            }
-
-            if (Stripersist.entityManagerFactoryLookup.size() == 0 && firstPersistentUnit != null) {
-                EntityManagerFactory factory = Stripersist.entityManagerFactories
-                        .get(firstPersistentUnit);
-                String name = firstPersistentUnit;
-
-                for (Class<?> clazz : findEntities(null)) {
-                    associateEntityManagerWithClass(factory, name, clazz);
-                }
-            }
+			   findEntities(null).each { Class<?> clazz ->
+				   associateEntityManagerWithClass(factory, name, clazz);
+			   }
+		   }
         } catch (Throwable e) {
-            log.error(""+e);
+            logger.error(""+e);
+			e.printStackTrace()
         }
     }
 
     private void associateEntityManagerWithClass(EntityManagerFactory factory, String name, Class<?> clazz) {
         if (!Stripersist.entityManagerFactoryLookup.containsKey(clazz)) {
-            log.debug("Associating " + clazz.getName() + " with persistence unit \"" + name + "\"")
+            logger.debug("Associating " + clazz.getName() + " with persistence unit \"" + name + "\"")
 
             Stripersist.entityManagerFactoryLookup.put(clazz, factory);
         }
@@ -368,17 +455,17 @@ public class Stripersist implements Interceptor, ConfigurableComponent {
                 if (jarName == null && file.isFile())
                     continue;
 
-                log.debug("Scanning for entities in [" + urlPath + "]");
+                _log.debug("Scanning for entities in [" + urlPath + "]");
                 if (file.isDirectory()) {
-                    log.debug("checking directory {}", file);
+                    _log.debug("checking directory {}", file);
                     classes.addAll(findEntitiesInDirectory("", file));
                 } else {
-                    log.debug("checking jar {}", file);
+                    _log.debug("checking jar {}", file);
                     classes.addAll(findEntitiesInJar(file));
                 }
 
             } catch (Exception e) {
-                log.error(""+e);
+                _log.error("2"+e);
             }
         }
 
@@ -409,7 +496,7 @@ public class Stripersist implements Interceptor, ConfigurableComponent {
 
             return classes
         } catch (IOException ioe) {
-            log.error("Could not search jar file '" + file + "' for entities due to an IOException: " + ioe.getMessage());
+            _log.error("Could not search jar file '" + file + "' for entities due to an IOException: " + ioe.getMessage());
         }
 
         return null
@@ -429,7 +516,7 @@ public class Stripersist implements Interceptor, ConfigurableComponent {
 
         // File.listFiles() can return null when an IO error occurs!
         if (files == null) {
-            log.warn("Could not list directory " + location.getAbsolutePath() + " when looking for entities");
+            _log.warn("Could not list directory " + location.getAbsolutePath() + " when looking for entities");
             return null;
         }
 
@@ -475,7 +562,7 @@ public class Stripersist implements Interceptor, ConfigurableComponent {
 
             return classes;
         } catch (IOException ioe) {
-            log.error("Could not search URL '" + url + "' for entities due to an IOException: " + ioe.getMessage());
+            _log.error("Could not search URL '" + url + "' for entities due to an IOException: " + ioe.getMessage());
         }
 
         return new HashSet<Class<?>>();
@@ -501,7 +588,7 @@ public class Stripersist implements Interceptor, ConfigurableComponent {
         } catch (NoClassDefFoundError e) {
             // Ignored
         } catch (Throwable t) {
-            log.debug("Could not examine class '" + fqn + "'" +  " due to a " + t.getClass().getName() + " with message: " + t.getMessage());
+            _log.debug("Could not examine class '" + fqn + "'" +  " due to a " + t.getClass().getName() + " with message: " + t.getMessage());
         }
     }
 
@@ -560,7 +647,7 @@ public class Stripersist implements Interceptor, ConfigurableComponent {
      * @return an EntityManager or null
      */
     public static EntityManager getEntityManager(EntityManagerFactory factory) {
-		log.debug "Getting single EntityManager with $factory"
+		_log.debug "Getting single EntityManager with $factory"
         Map<EntityManagerFactory, EntityManager> map = threadEntityManagers.get();
         EntityManager entityManager = null;
 
@@ -574,7 +661,7 @@ public class Stripersist implements Interceptor, ConfigurableComponent {
                             + "call Stripersist.requestComplete() in a finally block so\n"
                             + "Stripersist can clean everything up for you.");
 
-            log.error(""+sre);
+            _log.error(""+sre);
 
             return null;
         }
@@ -605,13 +692,13 @@ public class Stripersist implements Interceptor, ConfigurableComponent {
      * @return an @EntityManager
      */
     public static EntityManager getEntityManager() {
-		log.debug "Getting single EntityManager"
+		_log.debug "Getting single EntityManager"
 		
         if (Stripersist.entityManagerFactories.size() != 1) {
             StripesRuntimeException sre = new StripesRuntimeException(
                     "In order to call Stripersist.getEntityManager() without any parameters there must be exactly one persistence unit defined.");
 
-            log.error(""+sre);
+            _log.error(""+sre);
 
             return null;
         }
@@ -627,11 +714,11 @@ public class Stripersist implements Interceptor, ConfigurableComponent {
      * @return an EntityManager or null
      */
     public static EntityManager getEntityManager(String persistenceUnit) {
-		log.debug "Getting entity Manager by PU: $persistenceUnit"
+		_log.debug "Getting entity Manager by PU: $persistenceUnit"
         EntityManagerFactory factory = getEntityManagerFactory(persistenceUnit);
 
         if (factory == null) {
-            log.warn("Couldn't find EntityManagerFactory for persistence unit {}", persistenceUnit);
+            _log.warn("Couldn't find EntityManagerFactory for persistence unit {}", persistenceUnit);
             return null;
         }
 
@@ -646,13 +733,13 @@ public class Stripersist implements Interceptor, ConfigurableComponent {
      * @return an EntityManager or null
      */
     public static EntityManager getEntityManager(Class<?> forType) {
-		log.debug "Getting entity Manager by class: $forType"
-        log.debug("Looking up EntityManager for type {}", forType.getName());
+		_log.debug "Getting entity Manager by class: $forType"
+        _log.debug("Looking up EntityManager for type {}", forType.getName());
 
         EntityManagerFactory entityManagerFactory = getEntityManagerFactory(forType);
 
         if (entityManagerFactory == null) {
-            log.warn("Couldn't find EntityManagerFactory for class {}", forType.getName());
+            _log.warn("Couldn't find EntityManagerFactory for class {}", forType.getName());
             return null;
         }
 
@@ -687,7 +774,7 @@ public class Stripersist implements Interceptor, ConfigurableComponent {
         // looks like nobody needed us this time
         if (map == null) return;
 
-        log.trace("Cleaning up EntityManagers");
+        _log.trace("Cleaning up EntityManagers");
 
         Stripersist.threadEntityManagers.remove();
 

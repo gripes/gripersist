@@ -8,7 +8,7 @@ import org.junit.Test
 class TestEntityASTTransformation extends GroovyTestCase {
 
 	@Test public void testAnnotationPresent() {		
-		def bookFile = new File('test/mock/Author.groovy')
+		def bookFile = new File('test/mock/model/Author.groovy')
 		
 		assert bookFile.exists()
 

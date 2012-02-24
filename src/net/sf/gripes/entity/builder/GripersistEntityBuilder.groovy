@@ -54,7 +54,7 @@ class GripesEntityBuilder {
     </set>
 </class>"""
 
-		org.hibernate.service.BasicServiceRegistry registry = (new org.hibernate.service.ServiceRegistryBuilder().configure()).buildServiceRegistry()
+		org.hibernate.service.ServiceRegistry registry = (new org.hibernate.service.ServiceRegistryBuilder().configure()).buildServiceRegistry()
 		SessionFactory sessionFactory = new MetadataSources( registry )
 //		        .addFile( tmpFile )
 				.buildMetadata()
