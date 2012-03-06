@@ -171,7 +171,7 @@ class Gripersist implements Interceptor, ConfigurableComponent {
      */
     public void init(Configuration configuration) {
         this.configuration = configuration;
-		println "INIT GRIPERSIST"
+		
         try {
             // Just in case this is not the first call to this method, release any resources
             cleanup();
@@ -189,11 +189,7 @@ class Gripersist implements Interceptor, ConfigurableComponent {
 								(new ConfigSlurper().parse(this.class.classLoader.getResource("DB.groovy")))
 
 				def xmlTempl =  this.class.classLoader.getResource("META-INF/persistence.template")
-				println (dbConfig)
-				println !dbConfig.disabled 
-				println xmlTempl
 				if(dbConfig && !dbConfig.disabled && xmlTempl) {
-					println "DB ISN'T DISABLED"
 					url = createFromTemplate(xmlTempl)
 					
 					init("jar:${url.toString()}!/META-INF/persistence.xml".toURL())
@@ -214,11 +210,11 @@ class Gripersist implements Interceptor, ConfigurableComponent {
 						// url may be null if using ant/junit. if it is null we'll try a
 						// different classloader - thanks freddy!
 						if (url == null) {
-							log.debug "Still no persistence.xml, one last chance..."
+							logger.debug "Still no persistence.xml, one last chance..."
 							url = getClass().getResource("/META-INF/persistence.xml");
 						}
 						
-						log.debug("Reading persistence.xml from {}", url);
+						logger.debug("Reading persistence.xml from {}", url);
 						init(url);
 					}				
 				}
@@ -762,11 +758,11 @@ class Gripersist implements Interceptor, ConfigurableComponent {
         if (request == null || request.getAttribute(StripesConstants.REQ_ATTR_INCLUDE_PATH) == null) {
             switch (context.getLifecycleStage()) {
                 case net.sourceforge.stripes.controller.LifecycleStage.RequestInit:
-                    log.trace("RequestInit");
+                    logger.trace("RequestInit");
                     requestInit();
                     break;
 				case net.sourceforge.stripes.controller.LifecycleStage.RequestComplete:
-                    log.trace("RequestComplete");
+                    logger.trace("RequestComplete");
                     requestComplete();
                     break;
 			}

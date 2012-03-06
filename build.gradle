@@ -11,12 +11,13 @@ logger.quiet "Building Gripersist"
 
 group = 'gripes'
 archivesBaseName = 'gripersist'
-version = '0.1.5'
+version = '0.1.6'
 
 versions = [
-	'gripes-web' : '0.1.7',
-	'gripes-plugin' : '0.1.7',
-	'gripersist' : '0.1.4',
+	'gripes-web' : '0.1.8',
+	'gripes-plugin' : '0.1.9',
+	'gripersist' : '0.1.5',
+	'gripes-ast' : '0.1.0',
 	'hibernate-core' : '4.0.1.Final',
 	'tomcat':'6.0.35'
 ]
@@ -92,7 +93,9 @@ dependencies {
 	compile group: 'org.apache.tomcat', name: 'servlet-api', version: '6.0.35'
 	compile group: 'org.apache.tomcat', name: 'jsp-api', version: '6.0.35'
 					
-	compile(project(":gripes-ast")){changing=true}
+//	compile(project(":gripes-ast")){changing=true}
+	
+	compile("gripes:gripes-ast:0.1.0")
 }
 
 eclipse {
@@ -116,7 +119,7 @@ gradle.taskGraph.whenReady {taskGraph ->
 	if (taskGraph.hasTask(':release')) {
 		version = "1.0"
 	} else {
-		version = "${version}-SNAPSHOT-"+new GregorianCalendar().timeInMillis
+		version = "${version}"//-SNAPSHOT-"+new GregorianCalendar().timeInMillis
 	}
 	logger.quiet "Version set to $version"
 }
